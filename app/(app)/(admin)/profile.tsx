@@ -1,6 +1,10 @@
-import { View, Text, TouchableOpacity, Alert, ScrollView } from "react-native";
+import { useState } from "react";
+import { View, Text, TouchableOpacity, Alert, ScrollView, Image } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useAuthStore } from "@/store/auth";
+import { ImagePickerField } from "@/components/ui/ImagePickerField";
+import { avatarPath } from "@/lib/storage";
+import { supabase } from "@/lib/supabase";
 
 const ROLE_LABELS = {
   super_admin: "Super Administrador",
@@ -10,7 +14,8 @@ const ROLE_LABELS = {
 };
 
 export default function ProfileScreen() {
-  const { profile, signOut } = useAuthStore();
+  const { profile, signOut, setProfile } = useAuthStore();
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(profile?.avatar_url ?? null);
 
   const handleSignOut = () => {
     Alert.alert("Cerrar sesión", "¿Estás seguro?", [
@@ -19,16 +24,35 @@ export default function ProfileScreen() {
     ]);
   };
 
+  async function handleAvatarUploaded(url: string) {
+    const newUrl = url || null;
+    setAvatarUrl(newUrl);
+    // Persistir en la base de datos
+    await supabase
+      .from("profiles")
+      .update({ avatar_url: newUrl })
+      .eq("id", profile!.id);
+    // Actualizar el store local
+    if (profile) setProfile({ ...profile, avatar_url: newUrl });
+  }
+
   return (
     <ScrollView className="flex-1 bg-secondary-50">
       {/* Avatar + nombre */}
       <View className="bg-primary-600 items-center pt-10 pb-16">
-        <View className="w-20 h-20 bg-primary-200 rounded-full items-center justify-center mb-3">
-          <Text className="text-primary-700 font-bold text-3xl">
-            {profile?.full_name?.[0]?.toUpperCase() ?? "?"}
-          </Text>
-        </View>
-        <Text className="text-white font-bold text-xl">{profile?.full_name}</Text>
+        {/* Foto de perfil editable */}
+        <ImagePickerField
+          label=""
+          bucket="avatars"
+          storagePath={avatarPath(profile?.id ?? "unknown")}
+          currentUrl={avatarUrl}
+          placeholder={profile?.full_name?.[0]?.toUpperCase() ?? "?"}
+          placeholderColor="#15803d"
+          shape="circle"
+          size={88}
+          onUploaded={handleAvatarUploaded}
+        />
+        <Text className="text-white font-bold text-xl mt-3">{profile?.full_name}</Text>
         <Text className="text-primary-200 text-sm mt-1">
           {profile?.role ? ROLE_LABELS[profile.role] : ""}
         </Text>

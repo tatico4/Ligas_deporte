@@ -1,4 +1,4 @@
-import { TouchableOpacity, View, Text } from "react-native";
+import { TouchableOpacity, View, Text, Image } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { Badge } from "@/components/ui/Badge";
 import { ProgressBar } from "@/components/ui/ProgressBar";
@@ -41,7 +41,7 @@ export function TournamentCard({ tournament, onPress, teamCount = 0, dark }: Pro
           borderBottomColor: dark ? "#52525b" : typeMeta.color + "22",
         }}
       >
-        {/* Icon */}
+        {/* Logo o icono por defecto */}
         <View
           style={{
             width: 44,
@@ -50,9 +50,18 @@ export function TournamentCard({ tournament, onPress, teamCount = 0, dark }: Pro
             backgroundColor: typeMeta.color + "28",
             alignItems: "center",
             justifyContent: "center",
+            overflow: "hidden",
           }}
         >
-          <Ionicons name={typeMeta.icon as any} size={22} color={typeMeta.color} />
+          {tournament.logo_url ? (
+            <Image
+              source={{ uri: tournament.logo_url }}
+              style={{ width: 44, height: 44, borderRadius: 12 }}
+              resizeMode="cover"
+            />
+          ) : (
+            <Ionicons name={typeMeta.icon as any} size={22} color={typeMeta.color} />
+          )}
         </View>
 
         {/* Name + type */}

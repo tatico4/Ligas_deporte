@@ -15,6 +15,8 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { createTeam } from "@/lib/queries/teams";
 import { Button } from "@/components/ui/Button";
 import { Avatar } from "@/components/ui/Avatar";
+import { ImagePickerField } from "@/components/ui/ImagePickerField";
+import { teamLogoPath } from "@/lib/storage";
 
 const COLORS = [
   "#16a34a", "#22c55e", "#3b82f6", "#8b5cf6",
@@ -34,6 +36,7 @@ export default function AddTeamScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const queryClient = useQueryClient();
+  const [logoUrl, setLogoUrl] = useState<string | null>(null);
 
   const { control, handleSubmit, watch, setValue, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(schema),
@@ -52,7 +55,7 @@ export default function AddTeamScreen() {
         color_secondary: "#ffffff",
         group_name: data.group_name ?? null,
         captain_id: null,
-        logo_url: null,
+        logo_url: logoUrl,
         status: "active",
       }),
     onSuccess: () => {
@@ -90,11 +93,31 @@ export default function AddTeamScreen() {
           elevation: 2,
         }}
       >
-        <Avatar name={teamName || "?"} color={selectedColor} size={64} />
+        <Avatar
+          name={teamName || "?"}
+          color={selectedColor}
+          imageUrl={logoUrl}
+          size={72}
+        />
         <Text style={{ fontSize: 18, fontWeight: "800", color: "#18181b" }}>
           {teamName || "Nombre del equipo"}
         </Text>
         <Text style={{ fontSize: 13, color: "#71717a" }}>Vista previa</Text>
+      </View>
+
+      {/* Logo del equipo */}
+      <View style={{ marginBottom: 20 }}>
+        <ImagePickerField
+          label="Logo del equipo (opcional)"
+          bucket="logos"
+          storagePath={teamLogoPath(`new-${id}-${Date.now()}`)}
+          currentUrl={logoUrl}
+          placeholder={teamName?.[0] ?? "?"}
+          placeholderColor={selectedColor}
+          shape="circle"
+          size={72}
+          onUploaded={(url) => setLogoUrl(url || null)}
+        />
       </View>
 
       {/* Nombre */}

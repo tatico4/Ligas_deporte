@@ -15,6 +15,8 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuthStore } from "@/store/auth";
 import { createTournament } from "@/lib/queries/tournaments";
+import { ImagePickerField } from "@/components/ui/ImagePickerField";
+import { tournamentLogoPath } from "@/lib/storage";
 import type { TournamentType } from "@/types";
 
 const schema = z.object({
@@ -41,6 +43,9 @@ export default function NewTournamentScreen() {
   const { profile } = useAuthStore();
   const router = useRouter();
   const queryClient = useQueryClient();
+  const [logoUrl, setLogoUrl] = useState<string | null>(null);
+  // Guardamos un id temporal hasta tener el id real del torneo
+  const [tempLogoUri, setTempLogoUri] = useState<string | null>(null);
 
   const { control, handleSubmit, watch, setValue, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(schema),
@@ -61,7 +66,7 @@ export default function NewTournamentScreen() {
         ...data,
         admin_id: profile!.id,
         status: "draft",
-        logo_url: null,
+        logo_url: logoUrl,
         teams_per_group: null,
         description: data.description ?? null,
         start_date: data.start_date ?? null,
@@ -79,6 +84,21 @@ export default function NewTournamentScreen() {
   return (
     <ScrollView className="flex-1 bg-white" contentContainerStyle={{ padding: 16 }}>
       <Text className="text-secondary-800 font-bold text-xl mb-4">Nuevo torneo</Text>
+
+      {/* Logo del torneo */}
+      <View style={{ alignItems: "center", marginBottom: 24 }}>
+        <ImagePickerField
+          label="Logo del torneo"
+          bucket="logos"
+          storagePath={tournamentLogoPath(`new-${Date.now()}`)}
+          currentUrl={logoUrl}
+          placeholder="🏆"
+          placeholderColor="#16a34a"
+          shape="rounded"
+          size={96}
+          onUploaded={(url) => setLogoUrl(url || null)}
+        />
+      </View>
 
       {/* Nombre */}
       <View className="mb-4">
