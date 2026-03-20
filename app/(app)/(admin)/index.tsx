@@ -1,13 +1,18 @@
 import { View, Text, ScrollView, TouchableOpacity } from "react-native";
 import { useRouter } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
+import { Ionicons } from "@expo/vector-icons";
 import { useAuthStore } from "@/store/auth";
 import { getTournaments } from "@/lib/queries/tournaments";
+import { getMatches } from "@/lib/queries/matches";
 import { TournamentCard } from "@/components/TournamentCard";
-import { StatsCard } from "@/components/StatsCard";
+import { MatchCard } from "@/components/MatchCard";
+import { Button } from "@/components/ui/Button";
+import { TournamentCardSkeleton } from "@/components/ui/Skeleton";
+import { shadow } from "@/lib/design";
 
 export default function AdminHome() {
-  const { profile, signOut } = useAuthStore();
+  const { profile } = useAuthStore();
   const router = useRouter();
 
   const { data: tournaments = [], isLoading } = useQuery({
@@ -16,60 +21,168 @@ export default function AdminHome() {
     enabled: !!profile?.id,
   });
 
+  // Buscar próximo partido en todos los torneos activos
+  const activeTournaments = tournaments.filter((t) => t.status === "active");
+
+  const { data: upcomingMatches = [] } = useQuery({
+    queryKey: ["upcoming-matches", activeTournaments.map((t) => t.id).join(",")],
+    queryFn: async () => {
+      if (!activeTournaments.length) return [];
+      const allMatches = await Promise.all(
+        activeTournaments.map((t) => getMatches(t.id))
+      );
+      return allMatches
+        .flat()
+        .filter((m) => m.status === "scheduled")
+        .sort((a, b) =>
+          (a.scheduled_at ?? "") < (b.scheduled_at ?? "") ? -1 : 1
+        )
+        .slice(0, 1);
+    },
+    enabled: activeTournaments.length > 0,
+  });
+
   const active = tournaments.filter((t) => t.status === "active").length;
-  const finished = tournaments.filter((t) => t.status === "finished").length;
+  const draft = tournaments.filter((t) => t.status === "draft").length;
+
+  const nextMatch = upcomingMatches[0];
 
   return (
-    <ScrollView className="flex-1 bg-secondary-50">
-      {/* Header saludo */}
-      <View className="bg-primary-600 px-6 pt-6 pb-10">
-        <Text className="text-white text-lg">
-          Hola, {profile?.full_name?.split(" ")[0]} 👋
+    <ScrollView
+      className="flex-1 bg-secondary-50"
+      contentContainerStyle={{ paddingBottom: 32 }}
+      showsVerticalScrollIndicator={false}
+    >
+      {/* ── Header ── */}
+      <View
+        style={{
+          backgroundColor: "#16a34a",
+          paddingHorizontal: 20,
+          paddingTop: 20,
+          paddingBottom: 40,
+        }}
+      >
+        <Text style={{ color: "#dcfce7", fontSize: 13, fontWeight: "500" }}>Bienvenido de vuelta</Text>
+        <Text style={{ color: "#ffffff", fontSize: 24, fontWeight: "800", letterSpacing: -0.5, marginTop: 2 }}>
+          {profile?.full_name?.split(" ")[0]} 👋
         </Text>
-        <Text className="text-primary-100 text-sm mt-0.5">
-          Administrador de torneos
-        </Text>
+
+        {/* Quick stats row */}
+        <View style={{ flexDirection: "row", gap: 10, marginTop: 18 }}>
+          <StatPill icon="trophy" label="Activos" value={active} />
+          <StatPill icon="time-outline" label="Borradores" value={draft} />
+          <StatPill icon="football-outline" label="Total" value={tournaments.length} />
+        </View>
       </View>
 
-      <View className="-mt-6 px-4">
-        {/* Stats */}
-        <View className="flex-row gap-3 mb-4">
-          <StatsCard label="Torneos activos" value={active} icon="trophy" />
-          <StatsCard label="Finalizados" value={finished} icon="checkmark-circle" />
-          <StatsCard label="Total equipos" value={tournaments.reduce((a, t) => a + (t.max_teams || 0), 0)} icon="people" />
-        </View>
-
-        {/* Acción rápida */}
-        <TouchableOpacity
-          className="bg-primary-600 rounded-2xl py-4 items-center mb-6 shadow-sm"
-          onPress={() => router.push("/(app)/(admin)/tournaments/new")}
-        >
-          <Text className="text-white font-bold text-base">+ Crear nuevo torneo</Text>
-        </TouchableOpacity>
-
-        {/* Torneos recientes */}
-        <Text className="text-secondary-800 font-bold text-lg mb-3">Mis torneos</Text>
-
-        {isLoading ? (
-          <Text className="text-secondary-400 text-center py-4">Cargando...</Text>
-        ) : tournaments.length === 0 ? (
-          <View className="items-center py-10">
-            <Text className="text-4xl">🏆</Text>
-            <Text className="text-secondary-500 mt-2">Aún no tienes torneos</Text>
-            <Text className="text-secondary-400 text-sm">Crea tu primer torneo arriba</Text>
+      <View style={{ paddingHorizontal: 16, marginTop: -24, gap: 20 }}>
+        {/* ── Próximo partido ── */}
+        {nextMatch && (
+          <View>
+            <SectionHeader label="Próximo partido" />
+            <MatchCard
+              match={nextMatch}
+              onPress={() => {
+                const t = activeTournaments.find((t) => t.id === nextMatch.tournament_id);
+                if (t) router.push(`/(app)/(admin)/tournaments/${t.id}`);
+              }}
+            />
           </View>
-        ) : (
-          <View className="gap-3">
-            {tournaments.map((t) => (
-              <TournamentCard
-                key={t.id}
-                tournament={t}
-                onPress={() => router.push(`/(app)/(admin)/tournaments/${t.id}`)}
+        )}
+
+        {/* ── CTA crear torneo ── */}
+        {tournaments.length === 0 && !isLoading && (
+          <View
+            style={[
+              {
+                backgroundColor: "#fff",
+                borderRadius: 20,
+                padding: 24,
+                alignItems: "center",
+                gap: 12,
+              },
+              shadow.sm,
+            ]}
+          >
+            <Text style={{ fontSize: 44 }}>🏆</Text>
+            <Text style={{ fontSize: 17, fontWeight: "700", color: "#18181b" }}>
+              Crea tu primer torneo
+            </Text>
+            <Text style={{ fontSize: 14, color: "#71717a", textAlign: "center" }}>
+              Organiza equipos, genera el fixture y lleva la tabla de posiciones.
+            </Text>
+            <Button
+              label="Crear torneo"
+              onPress={() => router.push("/(app)/(admin)/tournaments/new")}
+              size="md"
+            />
+          </View>
+        )}
+
+        {/* ── Mis torneos ── */}
+        {(isLoading || tournaments.length > 0) && (
+          <View style={{ gap: 12 }}>
+            <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+              <SectionHeader label="Mis torneos" />
+              <TouchableOpacity onPress={() => router.push("/(app)/(admin)/tournaments")}>
+                <Text style={{ fontSize: 13, color: "#16a34a", fontWeight: "600" }}>Ver todos</Text>
+              </TouchableOpacity>
+            </View>
+
+            {isLoading ? (
+              <View style={{ gap: 12 }}>
+                <TournamentCardSkeleton />
+                <TournamentCardSkeleton />
+              </View>
+            ) : (
+              tournaments.slice(0, 3).map((t) => (
+                <TournamentCard
+                  key={t.id}
+                  tournament={t}
+                  onPress={() => router.push(`/(app)/(admin)/tournaments/${t.id}`)}
+                />
+              ))
+            )}
+
+            {!isLoading && (
+              <Button
+                label="+ Nuevo torneo"
+                onPress={() => router.push("/(app)/(admin)/tournaments/new")}
+                variant="outline"
+                fullWidth
               />
-            ))}
+            )}
           </View>
         )}
       </View>
     </ScrollView>
+  );
+}
+
+function StatPill({ icon, label, value }: { icon: string; label: string; value: number }) {
+  return (
+    <View
+      style={{
+        flex: 1,
+        backgroundColor: "rgba(255,255,255,0.18)",
+        borderRadius: 14,
+        paddingVertical: 10,
+        paddingHorizontal: 10,
+        alignItems: "center",
+        gap: 2,
+      }}
+    >
+      <Ionicons name={icon as any} size={16} color="#bbf7d0" />
+      <Text style={{ color: "#fff", fontSize: 18, fontWeight: "800" }}>{value}</Text>
+      <Text style={{ color: "#86efac", fontSize: 10, fontWeight: "500" }}>{label}</Text>
+    </View>
+  );
+}
+
+function SectionHeader({ label }: { label: string }) {
+  return (
+    <Text style={{ fontSize: 16, fontWeight: "700", color: "#18181b", letterSpacing: -0.3 }}>
+      {label}
+    </Text>
   );
 }
